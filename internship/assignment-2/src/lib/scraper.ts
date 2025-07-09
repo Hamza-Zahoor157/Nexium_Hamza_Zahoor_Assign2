@@ -1,40 +1,48 @@
-import * as cheerio from 'cheerio';
 import axios from 'axios';
+import * as cheerio from 'cheerio';
 
 export async function scrapeBlogContent(url: string): Promise<string> {
-  try {
-    if (!url.match(/^https?:\/\//i)) {
-      throw new Error('Invalid URL format');
-    }
+  if (!url.match(/^https?:\/\//i)) {
+    throw new Error('Invalid URL - must start with http:// or https://');
+  }
 
+  try {
     const response = await axios.get(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'text/html,application/xhtml+xml',
+        'Accept-Language': 'en-US,en;q=0.9'
+      },
+      timeout: 8000,
+      maxRedirects: 3
     });
-    
+
     const $ = cheerio.load(response.data);
     
-    $('script, style, nav, footer, iframe, img').remove();
+    // Remove unwanted elements
+    $('script, style, nav, footer, iframe, img, noscript').remove();
     
-    const selectors = [
+    // Priority content selectors
+    const contentSelectors = [
       'article', 
+      '.article-body',
       '.post-content',
-      '.article-content',
-      'main',
+      'main > .content',
       'body'
     ];
 
     let content = '';
-    selectors.forEach(selector => {
-      $(selector).each((_, element) => {
-        content += $(element).text() + '\n';
-      });
-    });
+    for (const selector of contentSelectors) {
+      const text = $(selector).text().trim();
+      if (text.length > content.length) content = text;
+    }
 
-    return content.replace(/\s+/g, ' ').trim();
+    return content
+      .replace(/\s+/g, ' ')
+      .replace(/\[.*?\]/g, '')
+      .trim();
   } catch (error) {
-    console.error('Scraping error:', error);
-    throw new Error('Failed to scrape blog content. Please check the URL and try again.');
+    console.error(`Scraping failed for ${url}:`, error);
+    throw new Error('Failed to fetch content. The website may be blocking automated requests.');
   }
 }

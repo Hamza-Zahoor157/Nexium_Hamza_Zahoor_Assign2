@@ -1,13 +1,18 @@
 'use client';
 import { useState } from 'react';
-import { scrapeBlogContent } from '@/lib/scraper';
+import { clientScrapeBlogContent } from '@/lib/clientScraper';
+import { generateMockSummary } from '@/lib/summarizer';
+import { translateToUrdu } from '@/lib/translation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardContent } from '@/components/ui/card';
+import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
+import { Loader2 } from 'lucide-react';
 
 export default function BlogSummariser() {
   const [url, setUrl] = useState('');
   const [content, setContent] = useState('');
+  const [summary, setSummary] = useState('');
+  const [urduTranslation, setUrduTranslation] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -17,15 +22,32 @@ export default function BlogSummariser() {
       setError('Please enter a URL');
       return;
     }
-    
+
     setIsLoading(true);
     setError('');
-    
+    setContent('');
+    setSummary('');
+    setUrduTranslation('');
+
     try {
-      const scrapedContent = await scrapeBlogContent(url);
+      // First try client-side scraping via API
+      const scrapedContent = await clientScrapeBlogContent(url);
       setContent(scrapedContent);
+
+      // Generate summary
+      const generatedSummary = generateMockSummary(scrapedContent);
+      setSummary(generatedSummary);
+
+      // Translate to Urdu
+      setUrduTranslation(translateToUrdu(generatedSummary));
+
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to scrape content');
+      setError(
+        err instanceof Error ? 
+        err.message : 
+        'This website cannot be scraped. Try a different URL.'
+      );
+      console.error('Scraping error:', err);
     } finally {
       setIsLoading(false);
     }
@@ -35,12 +57,12 @@ export default function BlogSummariser() {
     <main className="container mx-auto p-4 max-w-4xl">
       <Card className="mt-8">
         <CardHeader>
-          <h1 className="text-2xl font-bold">Blog Summariser</h1>
+          <CardTitle className="text-2xl font-bold">Blog Summariser</CardTitle>
           <p className="text-muted-foreground">
             Enter a blog URL to scrape and summarize content
           </p>
         </CardHeader>
-        
+
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="flex gap-2">
@@ -52,24 +74,48 @@ export default function BlogSummariser() {
                 className="flex-1"
                 required
               />
-              <Button
-                type="submit"
-                disabled={isLoading}
-              >
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
                 {isLoading ? 'Processing...' : 'Scrape'}
               </Button>
             </div>
-            
+
             {error && (
               <p className="text-red-500 text-sm">{error}</p>
             )}
-            
-            {content && (
-              <div className="mt-6 space-y-2">
-                <h2 className="text-xl font-semibold">Scraped Content</h2>
-                <div className="border rounded-lg p-4 bg-muted/50">
-                  <pre className="whitespace-pre-wrap text-sm">{content}</pre>
-                </div>
+
+            {summary && (
+              <div className="space-y-4 mt-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-xl">AI Summary</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="whitespace-pre-wrap">{summary}</p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-xl">Urdu Translation</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="whitespace-pre-wrap font-urdu" dir="rtl">
+                      {urduTranslation}
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <details className="border rounded-lg overflow-hidden">
+                  <summary className="bg-muted/50 px-4 py-2 cursor-pointer">
+                    Show Original Content
+                  </summary>
+                  <div className="p-4 max-h-96 overflow-y-auto">
+                    <pre className="whitespace-pre-wrap text-sm">{content}</pre>
+                  </div>
+                </details>
               </div>
             )}
           </form>
