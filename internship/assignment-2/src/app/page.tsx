@@ -3,9 +3,11 @@ import { useState } from 'react';
 import { clientScrapeBlogContent } from '@/lib/clientScraper';
 import { generateMockSummary } from '@/lib/summarizer';
 import { translateToUrdu } from '@/lib/translation';
+import { saveSummaryToSupabase } from '@/lib/supabase';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Loader2 } from 'lucide-react';
 
 export default function BlogSummariser() {
@@ -14,48 +16,68 @@ export default function BlogSummariser() {
   const [summary, setSummary] = useState('');
   const [urduTranslation, setUrduTranslation] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [notification, setNotification] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!url) {
-      setError('Please enter a URL');
+      setNotification({ type: 'error', message: 'Please enter a URL' });
       return;
     }
 
     setIsLoading(true);
-    setError('');
+    setNotification(null);
     setContent('');
     setSummary('');
     setUrduTranslation('');
 
     try {
-      // First try client-side scraping via API
       const scrapedContent = await clientScrapeBlogContent(url);
       setContent(scrapedContent);
 
-      // Generate summary
       const generatedSummary = generateMockSummary(scrapedContent);
       setSummary(generatedSummary);
 
-      // Translate to Urdu
-      setUrduTranslation(translateToUrdu(generatedSummary));
+      const generatedUrdu = translateToUrdu(generatedSummary);
+      setUrduTranslation(generatedUrdu);
 
-    } catch (err) {
-      setError(
-        err instanceof Error ? 
-        err.message : 
-        'This website cannot be scraped. Try a different URL.'
-      );
-      console.error('Scraping error:', err);
+      await saveSummaryToSupabase(url, generatedSummary, generatedUrdu);
+      
+      setNotification({
+        type: 'success',
+        message: 'Blog summary saved successfully!'
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to process blog content';
+      setNotification({
+        type: 'error',
+        message: errorMessage
+      });
+      console.error('Error:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <main className="container mx-auto p-4 max-w-4xl">
-      <Card className="mt-8">
+    <main className="container mx-auto p-4 max-w-4xl space-y-4">
+      {/* Notification Alert */}
+      {notification && (
+        <Alert variant={notification.type === 'success' ? 'default' : 'destructive'}>
+          <AlertTitle>
+            {notification.type === 'success' ? 'Success!' : 'Error'}
+          </AlertTitle>
+          <AlertDescription>
+            {notification.message}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <Card>
         <CardHeader>
           <CardTitle className="text-2xl font-bold">Blog Summariser</CardTitle>
           <p className="text-muted-foreground">
@@ -76,15 +98,13 @@ export default function BlogSummariser() {
               />
               <Button type="submit" disabled={isLoading}>
                 {isLoading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : null}
-                {isLoading ? 'Processing...' : 'Scrape'}
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : 'Scrape'}
               </Button>
             </div>
-
-            {error && (
-              <p className="text-red-500 text-sm">{error}</p>
-            )}
 
             {summary && (
               <div className="space-y-4 mt-6">
