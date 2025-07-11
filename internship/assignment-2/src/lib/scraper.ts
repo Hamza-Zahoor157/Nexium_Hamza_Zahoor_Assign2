@@ -42,7 +42,9 @@ export async function scrapeBlogContent(url: string): Promise<string> {
       .replace(/\[.*?\]/g, '')
       .trim();
   } catch (error) {
+    
     console.error(`Scraping failed for ${url}:`, error);
     throw new Error('Failed to fetch content. The website may be blocking automated requests.');
+    
   }
 }
