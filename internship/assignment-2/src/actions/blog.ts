@@ -24,7 +24,9 @@ export async function saveBlogContent(
       error: "Invalid URL format"
     };
   }
-
+   if (content.includes('<') || content.includes('>')) {
+    throw new Error('HTML content detected - use htmlToText() first');
+  }
   if (!content || content.trim().length === 0) {
     return {
       success: false,

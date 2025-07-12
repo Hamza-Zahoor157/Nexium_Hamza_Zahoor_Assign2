@@ -1,32 +1,22 @@
-import { scrapeBlogContent } from './scraper'; // Add this import
-
 export async function clientScrapeBlogContent(url: string): Promise<string> {
   try {
-    // First try the API route
     const response = await fetch('/api/scrape', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url }),
     });
 
-    if (!response.ok) throw new Error(`API request failed with status ${response.status}`);
+    if (!response.ok) throw new Error(`API request failed`);
+    
     const { content } = await response.json();
+    
+    if (!content) throw new Error('No content received');
     return content;
     
-  } catch (apiError) {
-    console.warn('API scraping failed, trying direct:', apiError);
-    
-    // Fallback to direct scraping
-    try {
-      return await scrapeBlogContent(url);
-    } catch (directError) {
-      throw new Error(
-        `Both API and direct scraping failed:\n` +
-        `API Error: ${apiError instanceof Error ? apiError.message : 'Unknown'}\n` +
-        `Direct Error: ${directError instanceof Error ? directError.message : 'Unknown'}`
-      );
-    }
+  } catch (error) {
+    console.error('Scraping failed:', error);
+    throw new Error(
+      `Failed to get content: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
   }
 }
